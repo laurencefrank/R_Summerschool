@@ -1,0 +1,303 @@
+---
+title: "Data analysis cycle"
+author: 'Utrecht Summerschool: Statistical Programming with R'
+date: "2024-06-30"
+output: html_document
+---
+
+```{r global_opts, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, 
+                      warning = FALSE,
+                      comment = "",
+                      fig.width = 16/2,
+                      fig.height = 9/2)
+
+```
+
+
+```{r Load_packages, echo=FALSE}
+# Ensures the package "pacman" is installed
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(tidyverse,
+               ggplot2,
+               gtsummary,
+               patchwork,
+               GGally,
+               ggcorrplot,
+               modelsummary,
+               kableExtra,
+               gt)
+```
+
+
+
+# Data analysis with mammals data
+
+This is a data set that has information about predation and danger exposure of the mammals during sleep. See here for the data and a description of the variables: https://www.openintro.org/data/index.php?data=mammals
+
+
+```{r import data}
+load("MammalsSleepData.RData")
+```
+
+```{r summary statistics}
+summary(mammals)
+```
+
+
+## Univariate distributions
+
+```{r univariate distributions}
+mammals %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram()
+```
+```{r bivariate distributions}
+mammals %>% 
+  pairs(~., data = ., main = "Scatterplot matrix of mammals data")
+```
+
+## Bivariate distributions
+
+```{r pairwise other layout}
+mammals %>% 
+  pairs(~., 
+        data = ., 
+        col = "blue",       # Change color of the dots
+        pch = 19,           # Change shape of points
+        cex = 0.5,          # Change size of points
+        gap = 0.3,          # Change gaps in between
+        main = "Scatterplot Matrix of `mammals` data",
+        )
+
+```
+
+
+## Select subset of the data
+
+Continue analyses with the following variables: `total_sleep`, `brain_wt`, `body_wt`, `life_span`, `danger`.
+
+Remove missing values.
+
+```{r subset data}
+subset_mammals <- mammals %>% 
+  select(total_sleep, brain_wt, body_wt, life_span, danger) %>%
+  na.omit() 
+
+# Alternative:
+# subset_mammals <- mammals %>% 
+#  select(total_sleep, brain_wt, body_wt, life_span, danger) %>%
+#  filter(complete.cases(.))
+
+```
+
+## Summary statistics for subset data
+
+```{r summary statistics subset}
+summary(subset_mammals)
+```
+
+
+## Table of summary statistics
+
+```{r table summary stats}
+## Nice table with gt_summary
+
+subset_mammals %>% 
+  tbl_summary(
+    statistic = list(all_continuous() ~ "{mean} ({sd})",
+                     all_categorical() ~ "{n} / {N} ({p}%)")
+  ) %>% 
+  modify_caption("**Table 1. Summary statistics for subset of mammals data**")
+```
+
+
+## Table summary stats by exposure to danger category
+
+```{r summary stats by danger}
+subset_mammals %>% 
+  tbl_summary(
+    # split by exposure to danger category
+    by = danger,
+    # change variable labels
+    label = list( 
+      total_sleep ~ "Total sleep (hours)",
+      brain_wt ~ "Brain weight (kg)",
+      body_wt ~ "Body weight (kg)",
+      life_span ~ "Life span (years)"
+      ),
+    # change statistics printed in table
+    statistic = list(all_continuous() ~ "{mean} ({sd})",
+                     all_categorical() ~ "{n} / {N} ({p}%)")
+    ) %>%
+  # Change default Characteristic into Variable
+  modify_header(label ~ "**Variable**") %>%
+  # Add a header text
+  modify_caption("**Table 2. Summary statistics by exposure to danger category (1 = less exposure to danger)**") %>% 
+  bold_labels()
+```
+
+## Explore bivariate relations
+
+```{r plot bivariate relations}
+subset_mammals %>% 
+  ggpairs(
+  lower = list(continuous = wrap("smooth", color = "lightblue")),
+  diag = list(continuous = wrap("barDiag", fill = "darkblue", bins=30)),
+  upper = list(continuous = wrap("cor", size = 4))
+  ) +
+  labs(
+    title = "Pairwise correlations and distributions of mammals sleep data (subset)",
+  ) +
+  theme_minimal()
+```
+
+## Boxplot of total sleep by exposure to danger
+
+```{r boxlplot total sleep by exposure}
+subset_mammals %>%
+  ggplot(aes(x = as.factor(danger), y = total_sleep)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(
+    title = "Boxplots of total sleep (hours) by exposure to danger",
+    x = "Danger category (1=least)",
+    y = "Total Sleep (hours)"
+  ) +
+  theme_minimal()
+
+```
+## Lineplot total sleep by life span
+
+```{r lineplot total sleep by life span}
+subset_mammals %>% 
+  ggplot(aes(x=life_span, y=total_sleep)) + 
+  geom_smooth() +
+   labs(
+    title = "Lineplot total sleep by life_span",
+    x = "Life span (years)",
+    y = "Total sleep (hours)"
+  ) +
+  theme_minimal()
+```
+
+
+## Create new variable: brain body ratio
+
+```{r create brain_body variable}
+subset_mammals <- subset_mammals %>% 
+    dplyr::mutate(brain_body = brain_wt / body_wt) %>% 
+    glimpse()
+```
+
+
+## Total sleep and brain body ratio
+
+```{r lineplot sleep and brain body ratio}
+subset_mammals %>% 
+  ggplot(aes(x=brain_body, y=total_sleep)) + 
+  geom_smooth() +
+   labs(
+    title = "Lineplot total sleep by brain body ratio",
+    x = "Ratio brain weight and body weight",
+    y = "Total sleep (hours)"
+  ) +
+  theme_minimal()
+```
+
+## Fit linear model
+
+Fit a linear model with dependent variable `total_sleep` and predictors `life_span`, `brain_body` and `danger`.
+```{r fil lm mammals subset}
+fit_lm_mammals <- lm(total_sleep ~ life_span + brain_body + danger, data = subset_mammals)
+
+summary(fit_lm_mammals)
+```
+
+
+## Regression table with `gtsummary`
+
+Create a table for the output of the linear regression analysis. 
+
+```{r regression table fit lm mammals subset}
+## Output of regression analysis with gtsummary()
+
+t1 <-
+  fit_lm_mammals %>% 
+  tbl_regression(
+    intercept = TRUE
+  ) %>% 
+  modify_header(label ~ "**Predictor**") %>%
+  modify_caption("**Table 1. Results of linear regression analysis for total sleep on life span, brain body ratio and exposure to danger**")
+
+t1
+
+```
+
+
+## Fit linear regression model with interaction between `life_span` and `danger`.
+
+```{r fit lm interaction}
+fit_lm_interaction <- lm(total_sleep ~ brain_body + life_span*danger, data = subset_mammals) 
+summary(fit_lm_interaction)
+```
+
+## Create a table for the regression model with interaction
+
+```{r table lm interaction}
+ 
+t2 <-
+  fit_lm_interaction %>% 
+  tbl_regression(
+    intercept = TRUE
+  ) %>% 
+  modify_header(label ~ "**Predictor**") %>%
+  modify_caption("**Table 2. Results of linear regression analysis for total sleep on brain body ratio and interaction between exposure to danger and life span**")
+
+t2
+```
+
+## Test difference between lm models with `anova`
+
+```{r test difference lm models}
+anova(fit_lm_mammals, fit_lm_interaction)
+```
+
+## Display results of lm models
+
+```{r table lm models}
+tbl_merge(
+  list(t1, t2),
+  tab_spanner = c("**Main effects model**", "**Interaction model**")
+) %>% 
+  modify_header(label ~ "**Predictor**") %>%
+  modify_caption("**Table 3. Results of linear regression analysis for total sleep: main effects model and interaction model**")
+```
+
+## Tables with `modelsummary`
+
+https://modelsummary.com/index.html
+
+```{r make table with modelsummary}
+models <- list(
+  "fit_mammals" = lm(total_sleep ~ life_span + brain_body + danger, data = subset_mammals),
+  "fit_mammals_interaction" = fit_lm_interaction <- lm(total_sleep ~ brain_body + life_span*danger, data = subset_mammals) 
+)
+```
+
+## Make a table with `modelsummary`
+
+```{r modelsummary table lm models}
+
+modelsummary(
+  models,
+  fmt = 1,
+  estimate  = "{estimate} [{conf.low}, {conf.high}]",
+  statistic = NULL,
+  coef_omit = "Intercept",
+  output = "kableExtra")
+```
+

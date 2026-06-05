@@ -1,0 +1,55 @@
+---
+title: "ioslides presentation template"
+subtitle: "Statistical Programming with R"
+author: 'Utrecht Summer School'
+output: 
+  ioslides_presentation:
+    smaller: true
+    css: custom.css
+   
+---
+
+# Chapter slide
+
+## New slide title
+
+1. The linear model `lm()`
+
+2. Simple regression
+    
+3. Multiple regression
+
+
+
+## The `lm()` function
+
+Insert some R code:
+
+```{r eval = FALSE}
+lm(formula, data) # returns an object of class lm
+```
+
+
+## Insert a table
+
+formula        | model
+:--------------|--------------------------
+`y ~ 1`        | intercept-only
+`y ~ x1`       | main effect of x1
+`y ~ x1 + x2`  | main effects of x1, x2
+`y ~ .`        | main effects of all predictors
+`y ~ . - x1`   | main effects of all predictors except x1
+`y ~ x1 + x2 + x1:x2`    | main effects + interaction between x1 and x2
+`y ~ x1*x2`    | idem
+`y ~ .^2`      | main effects + pairwise interactions between all predictors
+
+
+
+
+## Include R code
+
+```{r message = FALSE}
+plot(mtcars)
+```
+
+
